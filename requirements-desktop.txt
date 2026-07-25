@@ -1,0 +1,5 @@
+# GUI layer
+PySide6>=6.8,<7
+
+# Processing engine
+-r engine-requirements.txt
