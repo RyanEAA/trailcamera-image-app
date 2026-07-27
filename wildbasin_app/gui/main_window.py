@@ -5,6 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, QStandardPaths, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QDoubleSpinBox,
     QFileDialog,
@@ -125,6 +126,55 @@ class MainWindow(QMainWindow):
         box_layout.addLayout(redirect_row)
 
         layout.addWidget(box_group)
+
+        # ------------------------------------------------------------------
+        # Box Tokens
+        # ------------------------------------------------------------------
+        tokens_group = QGroupBox("Box Tokens")
+        tokens_layout = QGridLayout(tokens_group)
+
+        tokens_help = QLabel(
+            "These tokens are generated after successful Box authentication. "
+            "They can be copied into the Wild Basin website configuration."
+        )
+        tokens_help.setWordWrap(True)
+
+        self.access_token_display = QLineEdit()
+        self.access_token_display.setReadOnly(True)
+        self.access_token_display.setPlaceholderText(
+            "Authenticate with Box to generate an access token"
+        )
+
+        self.refresh_token_display = QLineEdit()
+        self.refresh_token_display.setReadOnly(True)
+        self.refresh_token_display.setPlaceholderText(
+            "Authenticate with Box to generate a refresh token"
+        )
+
+        self.copy_access_token_button = QPushButton("Copy")
+        self.copy_refresh_token_button = QPushButton("Copy")
+
+        self.copy_access_token_button.clicked.connect(
+            self._copy_access_token
+        )
+        self.copy_refresh_token_button.clicked.connect(
+            self._copy_refresh_token
+        )
+
+        self.copy_access_token_button.setEnabled(False)
+        self.copy_refresh_token_button.setEnabled(False)
+
+        tokens_layout.addWidget(tokens_help, 0, 0, 1, 3)
+
+        tokens_layout.addWidget(QLabel("Access Token"), 1, 0)
+        tokens_layout.addWidget(self.access_token_display, 1, 1)
+        tokens_layout.addWidget(self.copy_access_token_button, 1, 2)
+
+        tokens_layout.addWidget(QLabel("Refresh Token"), 2, 0)
+        tokens_layout.addWidget(self.refresh_token_display, 2, 1)
+        tokens_layout.addWidget(self.copy_refresh_token_button, 2, 2)
+
+        layout.addWidget(tokens_group)
 
         # ------------------------------------------------------------------
         # Box folder Input
@@ -250,20 +300,47 @@ class MainWindow(QMainWindow):
     def _set_auth_required(self):
         self.auth_status.setText("⚠ Need Proper Authentication")
         self.auth_status.setStyleSheet(
-            "font-size: 16px; font-weight: 600; color: #b45309; padding: 6px 0;"
+            "font-size: 16px; "
+            "font-weight: 600; "
+            "color: #b45309; "
+            "padding: 6px 0;"
         )
+
         self.disconnect_box_button.setEnabled(False)
+
+        if hasattr(self, "access_token_display"):
+            self.access_token_display.clear()
+            self.refresh_token_display.clear()
+
+            self.copy_access_token_button.setEnabled(False)
+            self.copy_refresh_token_button.setEnabled(False)
 
     def _set_authenticated(self, auth: BoxAuthResult):
         details = f"Welcome, {auth.user_name}"
+
         if auth.user_login:
             details += f" ({auth.user_login})"
 
         self.auth_status.setText(f"✓ {details}")
         self.auth_status.setStyleSheet(
-            "font-size: 16px; font-weight: 600; color: #15803d; padding: 6px 0;"
+            "font-size: 16px; "
+            "font-weight: 600; "
+            "color: #15803d; "
+            "padding: 6px 0;"
         )
+
         self.disconnect_box_button.setEnabled(True)
+
+        # Show generated Box tokens.
+        self.access_token_display.setText(auth.access_token)
+        self.refresh_token_display.setText(auth.refresh_token)
+
+        self.copy_access_token_button.setEnabled(
+            bool(auth.access_token)
+        )
+        self.copy_refresh_token_button.setEnabled(
+            bool(auth.refresh_token)
+        )
 
     def _open_box_auth(self):
         try:
@@ -329,6 +406,13 @@ class MainWindow(QMainWindow):
     def _disconnect_box(self):
         self.box_auth = None
         self.redirect_result.clear()
+
+        self.access_token_display.clear()
+        self.refresh_token_display.clear()
+
+        self.copy_access_token_button.setEnabled(False)
+        self.copy_refresh_token_button.setEnabled(False)
+
         self._set_auth_required()
         self.status.setText("Disconnected from Box.")
 
@@ -444,3 +528,22 @@ class MainWindow(QMainWindow):
         path = Path(self.output_dir.text().strip()).expanduser()
         path.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
+    def _copy_access_token(self):
+        token = self.access_token_display.text()
+
+        if not token:
+            return
+
+        QApplication.clipboard().setText(token)
+        self.status.setText("Access token copied to clipboard.")
+
+
+    def _copy_refresh_token(self):
+        token = self.refresh_token_display.text()
+
+        if not token:
+            return
+
+        QApplication.clipboard().setText(token)
+        self.status.setText("Refresh token copied to clipboard.")
