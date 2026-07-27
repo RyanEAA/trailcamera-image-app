@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QStandardPaths, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QSettings, QStandardPaths, QUrl, Qt
+from PySide6.QtGui import QDesktopServices, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QScrollBar,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -37,6 +39,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Wild Basin Image Processor")
+        self.setMinimumSize(600, 500)
         self.resize(900, 850)
 
         self.settings = QSettings()
@@ -54,7 +57,23 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self):
         root = QWidget()
-        layout = QVBoxLayout(root)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+        scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarAsNeeded
+        )
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+
+        scroll_area.setWidget(content)
+
+        root_layout = QVBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.addWidget(scroll_area)
 
         heading = QLabel("<h1>Wild Basin Image Processor</h1>")
         subtitle = QLabel(
