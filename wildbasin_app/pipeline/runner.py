@@ -1,195 +1,209 @@
 from __future__ import annotations
 
-import os
-import sys
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List
+import traceback
 
-from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, Signal
+from PySide6.QtCore import QObject, QThread, Signal, Slot
+
+from wildbasin_app.engines.box_urls import collect_box_image_records
+from wildbasin_app.engines.common import PipelineCancelled
+from wildbasin_app.engines.paddle_ocr_engine import run_paddle_ocr
+from wildbasin_app.engines.speciesnet_engine import run_speciesnet
 
 from .config import PipelineConfig
 
-@dataclass(frozen=True)
-class Stage:
-    name: str
-    script: Path
-    args: List[str]
+
+class _PipelineWorker(QObject):
+    log = Signal(str)
+    stage_started = Signal(str)
+    stage_finished = Signal(str, bool)
+    tokens_refreshed = Signal(str, str)
+    finished = Signal(bool)
+
+    def __init__(self, config: PipelineConfig):
+        super().__init__()
+        self.config = config
+        self._cancel_requested = False
+
+        self._access_token = config.access_token
+        self._refresh_token = config.refresh_token
+
+    def request_cancel(self) -> None:
+        self._cancel_requested = True
+
+    def _should_cancel(self) -> bool:
+        return self._cancel_requested
+
+    def _token_callback(
+        self,
+        access_token: str,
+        refresh_token: str,
+    ) -> None:
+        self._access_token = access_token
+        if refresh_token:
+            self._refresh_token = refresh_token
+
+        self.tokens_refreshed.emit(
+            self._access_token,
+            self._refresh_token,
+        )
+
+    def _common_credentials(self) -> dict:
+        return {
+            "client_id": self.config.client_id,
+            "client_secret": self.config.client_secret,
+            "access_token": self._access_token,
+            "refresh_token": self._refresh_token,
+            "token_callback": self._token_callback,
+        }
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self.config.output_dir.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            if self.config.run_url_scan:
+                self._run_stage(
+                    "Collect Box image records",
+                    self._run_box_urls,
+                )
+
+            if self.config.run_speciesnet:
+                self._run_stage(
+                    "Run SpeciesNet",
+                    self._run_speciesnet,
+                )
+
+            if self.config.run_ocr:
+                self._run_stage(
+                    "Run PaddleOCR",
+                    self._run_paddle_ocr,
+                )
+
+            self.log.emit("\nPipeline completed.")
+            self.finished.emit(True)
+
+        except PipelineCancelled:
+            self.log.emit("\nPipeline cancelled.")
+            self.finished.emit(False)
+
+        except Exception as exc:
+            self.log.emit(
+                "\nPipeline failed:\n"
+                f"{type(exc).__name__}: {exc}\n"
+                f"{traceback.format_exc()}"
+            )
+            self.finished.emit(False)
+
+    def _run_stage(self, name: str, callback) -> None:
+        if self._should_cancel():
+            raise PipelineCancelled()
+
+        self.stage_started.emit(name)
+        self.log.emit(f"\n=== {name} ===")
+
+        callback()
+
+        self.stage_finished.emit(name, True)
+
+    def _run_box_urls(self) -> None:
+        collect_box_image_records(
+            **self._common_credentials(),
+            folder_id=self.config.folder_id,
+            output_file=str(self.config.url_file),
+            batch_size=100,
+            log_callback=self.log.emit,
+            should_cancel=self._should_cancel,
+        )
+
+    def _run_speciesnet(self) -> None:
+        run_speciesnet(
+            **self._common_credentials(),
+            input_file=str(self.config.url_file),
+            results_file=str(self.config.speciesnet_file),
+            batch_size=self.config.speciesnet_batch_size,
+            download_workers=self.config.download_workers,
+            log_callback=self.log.emit,
+            should_cancel=self._should_cancel,
+        )
+
+    def _run_paddle_ocr(self) -> None:
+        run_paddle_ocr(
+            **self._common_credentials(),
+            input_file=str(self.config.url_file),
+            results_file=str(self.config.ocr_file),
+            batch_size=self.config.ocr_batch_size,
+            download_workers=self.config.download_workers,
+            crop_percent=self.config.ocr_crop_percent,
+            device="auto",
+            log_callback=self.log.emit,
+            should_cancel=self._should_cancel,
+        )
+
 
 class PipelineRunner(QObject):
     log = Signal(str)
     stage_started = Signal(str)
-    stage_finished = Signal(str, int)
+    stage_finished = Signal(str, bool)
+    tokens_refreshed = Signal(str, str)
     pipeline_finished = Signal(bool)
     running_changed = Signal(bool)
 
-    def __init__(self, engine_dir: Path, parent=None):
+    def __init__(self, _engine_dir=None, parent=None):
+        # _engine_dir is accepted only for compatibility with the current GUI.
         super().__init__(parent)
-        self.engine_dir = engine_dir
-        self._process: QProcess | None = None
-        self._stages: List[Stage] = []
-        self._stage_index = -1
-        self._cancelled = False
+        self._thread: QThread | None = None
+        self._worker: _PipelineWorker | None = None
 
     @property
     def is_running(self) -> bool:
-        return self._process is not None
+        return self._thread is not None and self._thread.isRunning()
 
     def start(self, config: PipelineConfig) -> None:
         if self.is_running:
             raise RuntimeError("A pipeline is already running.")
 
-        config.output_dir.mkdir(parents=True, exist_ok=True)
-        self._cancelled = False
-        self._stages = self._build_stages(config)
-        self._stage_index = -1
+        thread = QThread(self)
+        worker = _PipelineWorker(config)
+        worker.moveToThread(thread)
 
-        if not self._stages:
-            self.log.emit("No processing stages were selected.")
-            self.pipeline_finished.emit(True)
-            return
+        thread.started.connect(worker.run)
 
-        self._config = config
+        worker.log.connect(self.log)
+        worker.stage_started.connect(self.stage_started)
+        worker.stage_finished.connect(self.stage_finished)
+        worker.tokens_refreshed.connect(self.tokens_refreshed)
+        worker.finished.connect(self._worker_finished)
+
+        worker.finished.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(self._thread_finished)
+
+        self._thread = thread
+        self._worker = worker
+
         self.running_changed.emit(True)
-        self._start_next_stage()
+        thread.start()
 
     def cancel(self) -> None:
-        self._cancelled = True
-        if self._process is not None:
-            self.log.emit("\nCancelling current stage...")
-            self._process.terminate()
-            if not self._process.waitForFinished(3000):
-                self._process.kill()
-
-    def _build_stages(self, config: PipelineConfig) -> List[Stage]:
-        stages: List[Stage] = []
-
-        if config.run_url_scan:
-            stages.append(
-                Stage(
-                    "Collect Box image records",
-                    self.engine_dir / "box-get-urls.py",
-                    [
-                        "--output-file", str(config.url_file),
-                    ],
-                )
-            )
-
-        if config.run_speciesnet:
-            stages.append(
-                Stage(
-                    "Run SpeciesNet",
-                    self.engine_dir / "batch-box-run-speciesnet.py",
-                    [
-                        "--input-file", str(config.url_file),
-                        "--results-file", str(config.speciesnet_file),
-                        "--batch-size", str(config.speciesnet_batch_size),
-                        "--download-workers", str(config.download_workers),
-                    ],
-                )
-            )
-
-        if config.run_ocr:
-            stages.append(
-                Stage(
-                    "Run PaddleOCR",
-                    self.engine_dir / "batch-box-paddle-ocr-gpu.py",
-                    [
-                        "--input-file", str(config.url_file),
-                        "--results-file", str(config.ocr_file),
-                        "--batch-size", str(config.ocr_batch_size),
-                        "--download-workers", str(config.download_workers),
-                        "--crop-percent", str(config.ocr_crop_percent),
-                        "--device", "auto",
-                    ],
-                )
-            )
-
-        return stages
-
-    def _start_next_stage(self) -> None:
-        self._stage_index += 1
-
-        if self._cancelled:
-            self._cleanup_process()
-            self.running_changed.emit(False)
-            self.pipeline_finished.emit(False)
-            return
-
-        if self._stage_index >= len(self._stages):
-            self._cleanup_process()
-            self.log.emit("\nPipeline completed.")
-            self.running_changed.emit(False)
-            self.pipeline_finished.emit(True)
-            return
-
-        stage = self._stages[self._stage_index]
-        self.stage_started.emit(stage.name)
-        self.log.emit(f"\n=== {stage.name} ===")
-        self.log.emit(f"$ {sys.executable} {stage.script.name} {' '.join(stage.args)}")
-
-        process = QProcess(self)
-        process.setWorkingDirectory(str(self.engine_dir))
-        process.setProgram(sys.executable)
-        process.setArguments([str(stage.script), *stage.args])
-        process.setProcessChannelMode(QProcess.MergedChannels)
-
-        env = QProcessEnvironment.systemEnvironment()
-        env.insert("CLIENT_ID", self._config.client_id)
-        env.insert("CLIENT_SECRET", self._config.client_secret)
-        env.insert("ACCESS_TOKEN", self._config.access_token)
-        env.insert("REFRESH_TOKEN", self._config.refresh_token)
-        env.insert("ROOT_FOLDER_ID", self._config.folder_id)
-        env.insert("OUTPUT_FILE", str(self._config.url_file))
-        env.insert("PYTHONUNBUFFERED", "1")
-        process.setProcessEnvironment(env)
-
-        process.readyReadStandardOutput.connect(self._read_output)
-        process.finished.connect(self._process_finished)
-        process.errorOccurred.connect(self._process_error)
-
-        self._process = process
-        process.start()
-
-    def _read_output(self) -> None:
-        if self._process is None:
-            return
-        data = bytes(self._process.readAllStandardOutput()).decode(
-            "utf-8", errors="replace"
-        )
-        if data:
-            self.log.emit(data.rstrip("\n"))
-
-    def _process_finished(self, exit_code: int, _exit_status) -> None:
-        stage = self._stages[self._stage_index]
-        self._read_output()
-        self.stage_finished.emit(stage.name, exit_code)
-
-        process = self._process
-        self._process = None
-        if process is not None:
-            process.deleteLater()
-
-        if self._cancelled:
-            self.running_changed.emit(False)
-            self.pipeline_finished.emit(False)
-            return
-
-        if exit_code != 0:
+        if self._worker is not None:
             self.log.emit(
-                f"\n{stage.name} failed with exit code {exit_code}. "
-                "The remaining stages were not started."
+                "\nCancellation requested. "
+                "The current image/model batch will finish safely first."
             )
-            self.running_changed.emit(False)
-            self.pipeline_finished.emit(False)
-            return
+            self._worker.request_cancel()
 
-        self._start_next_stage()
+    @Slot(bool)
+    def _worker_finished(self, success: bool) -> None:
+        self.pipeline_finished.emit(success)
+        self.running_changed.emit(False)
 
-    def _process_error(self, error) -> None:
-        self.log.emit(f"Process error: {error}")
+    @Slot()
+    def _thread_finished(self) -> None:
+        if self._thread is not None:
+            self._thread.deleteLater()
 
-    def _cleanup_process(self) -> None:
-        if self._process is not None:
-            self._process.deleteLater()
-            self._process = None
+        self._thread = None
+        self._worker = None

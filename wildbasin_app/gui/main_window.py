@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, QStandardPaths, QUrl, Qt
-from PySide6.QtGui import QDesktopServices, Qt
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
-    QScrollBar,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -54,6 +53,26 @@ class MainWindow(QMainWindow):
         self._load_settings()
         self._connect_runner()
         self._set_auth_required()
+
+    def _copy_access_token(self):
+        token = self.access_token_display.text()
+
+        if not token:
+            return
+
+        QApplication.clipboard().setText(token)
+        self.status.setText("Access token copied to clipboard.")
+
+
+    def _copy_refresh_token(self):
+        token = self.refresh_token_display.text()
+
+        if not token:
+            return
+
+        QApplication.clipboard().setText(token)
+        self.status.setText("Refresh token copied to clipboard.")
+
 
     def _build_ui(self):
         root = QWidget()
@@ -149,6 +168,8 @@ class MainWindow(QMainWindow):
         # ------------------------------------------------------------------
         # Box Tokens
         # ------------------------------------------------------------------
+        
+        
         tokens_group = QGroupBox("Box Tokens")
         tokens_layout = QGridLayout(tokens_group)
 
@@ -445,6 +466,41 @@ class MainWindow(QMainWindow):
         )
         self.runner.pipeline_finished.connect(self._pipeline_finished)
         self.runner.running_changed.connect(self._running_changed)
+        self.runner.tokens_refreshed.connect(
+            self._box_tokens_refreshed
+        )
+
+
+    def _box_tokens_refreshed(
+        self,
+        access_token: str,
+        refresh_token: str,
+    ):
+        if self.box_auth is None:
+            return
+
+        self.box_auth = BoxAuthResult(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=self.box_auth.expires_in,
+            user_id=self.box_auth.user_id,
+            user_name=self.box_auth.user_name,
+            user_login=self.box_auth.user_login,
+        )
+
+        self.access_token_display.setText(access_token)
+        self.refresh_token_display.setText(refresh_token)
+
+        self.copy_access_token_button.setEnabled(
+            bool(access_token)
+        )
+        self.copy_refresh_token_button.setEnabled(
+            bool(refresh_token)
+        )
+
+        self.status.setText(
+            "Box authentication tokens were automatically refreshed."
+        )
 
     def _default_output_dir(self) -> str:
         documents = QStandardPaths.writableLocation(
