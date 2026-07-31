@@ -123,6 +123,13 @@ class MainWindow(QMainWindow):
         self.redirect_uri = QLineEdit()
         self.redirect_uri.setPlaceholderText("http://localhost:8080")
 
+        self.box_developer_button = QPushButton("Open Box Developer Portal")
+        self.box_developer_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(
+                QUrl("https://developer.box.com/")
+            )
+        )
+        
         box_form.addRow("Client ID", self.client_id)
         box_form.addRow("Client Secret", self.client_secret)
         box_form.addRow("Redirect URI", self.redirect_uri)
@@ -509,21 +516,20 @@ class MainWindow(QMainWindow):
         return str(Path(documents) / "Wild Basin Results")
 
     def _load_settings(self):
-        self.client_id.setText(self.settings.value("client_id", ""))
-        self.redirect_uri.setText(
-            self.settings.value("redirect_uri", "http://localhost:8080")
-        )
-        self.folder.setText(self.settings.value("folder", ""))
+        self.client_id.clear()
+
+        self.redirect_uri.setText("http://localhost:8080")
+
+        self.folder.clear()
+
         self.output_dir.setText(
             self.settings.value("output_dir", self._default_output_dir())
         )
-
+        
     def _save_non_secret_settings(self):
-        # Deliberately do not persist the client secret or OAuth tokens here.
-        self.settings.setValue("client_id", self.client_id.text().strip())
-        self.settings.setValue("redirect_uri", self.redirect_uri.text().strip())
-        self.settings.setValue("folder", self.folder.text().strip())
-        self.settings.setValue("output_dir", self.output_dir.text().strip())
+        # Deliberately do not persist OAuth credentials or user-specific paths.
+        # Each launch starts with fresh values.
+        pass
 
     def _browse_output(self):
         folder = QFileDialog.getExistingDirectory(
