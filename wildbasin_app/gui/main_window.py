@@ -522,10 +522,8 @@ class MainWindow(QMainWindow):
 
         self.folder.clear()
 
-        self.output_dir.setText(
-            self.settings.value("output_dir", self._default_output_dir())
-        )
-        
+        self.output_dir.setText(self._default_output_dir())
+
     def _save_non_secret_settings(self):
         # Deliberately do not persist OAuth credentials or user-specific paths.
         # Each launch starts with fresh values.
