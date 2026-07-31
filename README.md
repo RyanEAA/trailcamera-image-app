@@ -150,6 +150,14 @@ source .venv/bin/activate
 ```
 
 Install dependencies.
+```
+pip install boxsdk==3.14.0
+pip install opencv-python==5.0.0.93
+pip install paddleocr==3.5.0 paddlepaddle==3.3.1 paddlex==3.5.2
+pip install speciesnet --use-pep517
+pip install pyinstaller pyinstaller-hooks-contrib
+
+```
 
 Run
 
@@ -166,88 +174,15 @@ The application is currently packaged using **PyInstaller**.
 Example build command
 
 ```bash
-python -m PyInstaller \
-  --clean \
-  --noconfirm \
-  --windowed \
-  --onedir \
-  --name "Trail Camera Image Processor" \
-  --collect-all boxsdk \
-  --collect-all paddle \
-  --collect-all paddleocr \
-  --collect-all paddlex \
-  --collect-all speciesnet \
-  --collect-all onnx2torch \
-  --collect-all onnx \
-  --collect-all torch \
-  --collect-all torchvision \
-  --collect-all imagesize \
-  --collect-all pyclipper \
-  --collect-all pypdfium2 \
-  --collect-all bidi \
-  --collect-all shapely \
-  --collect-all cv2 \
-  --copy-metadata cloudpathlib \
-  --copy-metadata imagesize \
-  --copy-metadata opencv-contrib-python \
-  --copy-metadata pyclipper \
-  --copy-metadata pypdfium2 \
-  --copy-metadata python-bidi \
-  --copy-metadata shapely \
-  --recursive-copy-metadata paddlex \
-  --recursive-copy-metadata paddleocr \
-  app.py
+ chmod +x build-macos.sh
+./build-macos.sh
 ```
 
 The generated application is placed in
 
 ```
-dist/
+dist/Trail\ Camera\ Image\ Processor/Trail\ Camera\ Image\ Processor
 ```
-
----
-
-# Building on Another Computer
-
-The project can be built on another machine **provided the environment matches**.
-
-Requirements
-
-- macOS (Apple Silicon recommended)
-- Python 3.9.x
-- Xcode Command Line Tools
-- Homebrew
-- OpenBLAS
-
-Install OpenBLAS
-
-```bash
-brew install openblas
-```
-
-Clone the repository
-
-```bash
-git clone <repository>
-cd trailcamera-image-app
-```
-
-Create a virtual environment
-
-```bash
-python3.9 -m venv .venv
-source .venv/bin/activate
-```
-
-Install all project dependencies.
-
-Run
-
-```bash
-python app.py
-```
-
-Once the application works correctly from source, run the PyInstaller build command above.
 
 ---
 

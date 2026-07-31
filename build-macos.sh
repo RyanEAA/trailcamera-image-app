@@ -2,7 +2,8 @@
 
 set -e
 
-rm -rf build dist
+rm -rf build
+rm -rf dist
 rm -f "Trail Camera Image Processor.spec"
 
 
