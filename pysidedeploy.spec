@@ -21,10 +21,10 @@ icon = /Users/ryan/Desktop/trailcamera-image-app/.venv/lib/python3.9/site-packag
 [python]
 
 # python path
-python_path = /Users/ryan/Desktop/trailcamera-image-app/.venv/bin/python3
+python_path = /Users/ryan/Desktop/trailcamera-image-app/.venv/bin/python
 
 # python packages to install
-packages = Nuitka==2.7.11
+packages = Nuitka==4.1.3
 
 # buildozer = for deploying Android application
 android_packages = buildozer==1.5.0,cython==0.29.33
@@ -68,7 +68,7 @@ macos.permissions =
 mode = standalone
 
 # specify any extra nuitka arguments
-extra_args = --quiet --noinclude-qt-translations
+extra_args = --quiet --noinclude-qt-translations --static-libpython=no --module-parameter=torch-disable-jit=yes
 
 [buildozer]
 

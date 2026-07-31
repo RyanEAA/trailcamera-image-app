@@ -1,0 +1,123 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# =========================
+# PyInstaller
+# =========================
+*.spec
+!pysidedeploy.spec
+
+# Generated applications
+*.app
+*.dmg
+
+# Build logs
+*.log
+
+# =========================
+# IDEs
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# macOS
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Finder
+Icon?
+._*
+
+# Thumbnails
+.Spotlight-V100
+.Trashes
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# OAuth / credentials
+tokens.json
+credentials.json
+box_tokens.json
+
+# =========================
+# Output folders
+# =========================
+output/
+outputs/
+results/
+downloads/
+temp/
+tmp/
+
+# Generated JSON/JSONL
+*.jsonl
+*.ndjson
+
+# Optional:
+# Uncomment if you never want generated JSON in git
+# *.json
+
+# =========================
+# Paddle / ML caches
+# =========================
+.cache/
+
+# Paddle model cache
+.paddlex/
+
+# Torch cache
+.torch/
+
+# HuggingFace
+.huggingface/
+
+# =========================
+# Testing
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Misc
+# =========================
+*.swp
+*.swo
+*~
+
+# =========================
+# Local result folders
+# =========================
+box-app-test-results/
