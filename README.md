@@ -174,7 +174,7 @@ The application is currently packaged using **PyInstaller**.
 Example build command
 
 ```bash
- chmod +x build-macos.sh
+chmod +x build-macos.sh
 ./build-macos.sh
 ```
 

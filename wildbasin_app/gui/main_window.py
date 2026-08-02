@@ -123,12 +123,20 @@ class MainWindow(QMainWindow):
         self.redirect_uri = QLineEdit()
         self.redirect_uri.setPlaceholderText("http://localhost:8080")
 
-        self.box_developer_button = QPushButton("Open Box Developer Portal")
+        self.box_developer_button = QPushButton("1. Open Box Developer Portal")
         self.box_developer_button.clicked.connect(
             lambda: QDesktopServices.openUrl(
                 QUrl("https://developer.box.com/")
             )
         )
+
+        developer_button_row = QHBoxLayout()
+        developer_button_row.addWidget(self.box_developer_button)
+        developer_button_row.addStretch()
+
+        box_layout.addLayout(developer_button_row)
+
+        box_form = QFormLayout()
         
         box_form.addRow("Client ID", self.client_id)
         box_form.addRow("Client Secret", self.client_secret)
@@ -137,7 +145,7 @@ class MainWindow(QMainWindow):
         box_layout.addLayout(box_form)
 
         auth_buttons = QHBoxLayout()
-        self.open_box_auth_button = QPushButton("1. Open Box Authentication")
+        self.open_box_auth_button = QPushButton("2. Open Box Authentication")
         self.open_box_auth_button.clicked.connect(self._open_box_auth)
 
         self.disconnect_box_button = QPushButton("Disconnect")
@@ -163,7 +171,7 @@ class MainWindow(QMainWindow):
             "http://localhost:8080/?code=..."
         )
 
-        self.complete_auth_button = QPushButton("2. Complete Authentication")
+        self.complete_auth_button = QPushButton("3. Complete Authentication")
         self.complete_auth_button.clicked.connect(self._complete_box_auth)
 
         redirect_row.addWidget(self.redirect_result, 1)
@@ -252,7 +260,7 @@ class MainWindow(QMainWindow):
         outputs = QGridLayout(outputs_group)
 
         self.output_dir = QLineEdit()
-        browse = QPushButton("Browse…")
+        browse = QPushButton("4. Browse…")
         browse.clicked.connect(self._browse_output)
 
         self.url_filename = QLineEdit("box-images.json")
@@ -316,7 +324,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(stages_group)
 
         controls = QHBoxLayout()
-        self.start_button = QPushButton("Start Processing")
+        self.start_button = QPushButton("5. Start Processing")
         self.cancel_button = QPushButton("Cancel")
         self.open_folder_button = QPushButton("Open Results Folder")
         self.cancel_button.setEnabled(False)
