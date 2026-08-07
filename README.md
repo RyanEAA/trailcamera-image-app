@@ -156,7 +156,7 @@ pip install opencv-python==5.0.0.93
 pip install paddleocr==3.5.0 paddlepaddle==3.3.1 paddlex==3.5.2
 pip install speciesnet --use-pep517
 pip install pyinstaller pyinstaller-hooks-contrib
-
+pip install PySide6
 ```
 
 Run
